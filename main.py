@@ -3,7 +3,7 @@ import math
 import random
 
 ## SETTINGS:
-game_loop_frequency = 60
+game_loop_frequency = 30
 run = True
 game_area_max_x = 1920
 game_area_max_y = 1080
@@ -11,17 +11,19 @@ x = game_area_max_x/2
 y = game_area_max_y/2
 width = 20
 height = 20
-speed = 6
+speed = 3
 aim_distance = 50
 
-bullet_speed = 10
-bullet_reload_speed = 5
-bullet_capacity = 3
-bullet_count = 3
+bullet_speed = 5
+bullet_reload_speed = 10
+bullet_capacity = 4
+bullet_count = 4
 bullet_reload_count = 0
+bullet_box_width = 4.5
+bullet_box_height = 4
 bullets = []
 
-monster_speed = 3
+monster_speed = 2
 monster_size = 30
 monster_half_size = monster_size/2
 monster_spawn_rate = 3
@@ -140,9 +142,10 @@ while run:
             run = False
         if event.type == pygame.MOUSEBUTTONDOWN:
             left, _, right = pygame.mouse.get_pressed()
-            if left:
+            if left and bullet_count > 0:
                 dx, dy = get_coordinates_for_player_to_mouse_distance(mouse_pos, (x,y), bullet_speed)
                 bullets.append(Bullet(x, y, dx, dy))
+                bullet_count -= 1
 
     keys = pygame.key.get_pressed()
     if keys[pygame.K_w]:
@@ -164,7 +167,6 @@ while run:
     if keys[pygame.K_ESCAPE]:
         run = False
 
-
     win.fill((0,0,0))
 
     for i, bullet in enumerate(bullets):
@@ -173,11 +175,21 @@ while run:
         else:
             bullets.pop(i)
 
+    if bullet_count < bullet_capacity:
+        if bullet_reload_count >= bullet_reload_speed:
+            bullet_count += 1
+            bullet_reload_count = 0
+        else:
+            bullet_reload_count += 1
+
     for i, monster in enumerate(monsters):
         monster.update((x,y))
         monster.draw()
 
+    #draw player
     pygame.draw.rect(win, (255, 0, 0), (x-width/2, y-height/2, width, height))
+    for i in range(bullet_count):
+        pygame.draw.rect(win, (0, 255, 255), (x+width/2-bullet_box_width*(i+1)-i, y+height/2+bullet_box_height, bullet_box_width, bullet_box_height))
 
     draw_aim_marker(win, mouse_pos, (x, y))
     pygame.display.update()
