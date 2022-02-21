@@ -15,7 +15,7 @@ speed = 3
 aim_distance = 50
 
 bullet_speed = 5
-bullet_reload_speed = 10
+bullet_reload_speed = 15
 bullet_capacity = 4
 bullet_count = 4
 bullet_reload_count = 0
@@ -31,10 +31,13 @@ monster_spawn_rate_increase = 20
 monster_spawn_rate_counter = 0
 monsters = []
 
+points = 0
 
 ##INIT
 pygame.init()
 random.seed()
+pygame.font.init()
+font = pygame.font.Font('freesansbold.ttf', 32)
 
 ##OBJECTS AND STUFF:
 
@@ -88,6 +91,7 @@ class Bullet():
         self.dy = dy
 
     def update(self, monsters):
+        global points
         self.x -= self.dx
         self.y -= self.dy
 
@@ -98,6 +102,8 @@ class Bullet():
         for i, monster in enumerate(monsters):
             if monster.x-monster_half_size < self.x < monster.x+monster_half_size and monster.y-monster_half_size < self.y < monster.y+monster_half_size:
                 monsters.pop(i)
+                points += 1
+                print("Points: %d" % points)
                 return False
 
         return True
@@ -192,13 +198,18 @@ while run:
         pygame.draw.rect(win, (0, 255, 255), (x+width/2-bullet_box_width*(i+1)-i, y+height/2+bullet_box_height, bullet_box_width, bullet_box_height))
 
     draw_aim_marker(win, mouse_pos, (x, y))
-    pygame.display.update()
+    text = font.render("Kills: %d" % points, True, (255,0,0), (0,0,0))
+    text_rect = text.get_rect()
+    text_rect.center = (game_area_max_x-150, 100)
+    win.blit(text, text_rect)
 
     monster_spawn_rate_counter -= 1
     if monster_spawn_rate_counter <= 0:
         monster_spawn_rate += 1
         monster_spawn_rate_counter = monster_spawn_rate_increase
         monsters.append(spawn_monster())
+
+    pygame.display.update()
 
 pygame.quit
 
