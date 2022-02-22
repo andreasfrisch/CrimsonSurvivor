@@ -87,6 +87,8 @@ def reset_game_state():
     global points
     global game_in_progress
     global player_died
+    global is_in_menu
+    global is_in_level_screen
     global ongoing_effects
     global powerups
     global timer
@@ -112,6 +114,8 @@ def reset_game_state():
     points = 0
     game_in_progress = False
     player_died = False
+    is_in_menu = False
+    is_in_level_screen = False
     powerups = []
     ongoing_effects = []
     timer = 0
@@ -360,7 +364,7 @@ def generate_swarm(position):
         if i == 4:
             x += monster_size*2
 
-        new_swarm.append(SwarmMonster(x, y, 1, 1, monster_size*0.8, monster_speed*2.5))
+        new_swarm.append(SwarmMonster(x, y, 1, 15, monster_size*0.8, monster_speed*2.5))
     return new_swarm
 
 def randomise_monster_type(pos):
