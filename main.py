@@ -103,6 +103,7 @@ def reset_game_state():
     global bullet_reload_speed
     global monster_spawn_rate
     global bullet_shoot_through
+    global weapon_cooldown_max
 
     monsters = []
     bullets = []
@@ -127,6 +128,7 @@ def reset_game_state():
     bullet_reload_speed = 15
     monster_spawn_rate = 1
     bullet_shoot_through = False
+    weapon_cooldown_max = 10
 
 class OngoingEffectOptions(Enum):
     SPEED = 1
@@ -148,6 +150,7 @@ class LevelOptions(Enum):
     SPEED = 0
     RELOAD_RATE = 1
     MAX_HEALTH = 2
+    WEAPON_COOLDOWN = 3
 
 def get_menu_options():
     global game_in_progress
@@ -218,6 +221,7 @@ def render_debug_texts():
         "health: %d/%d" % (health, max_health),
         "speed: %d" % speed,
         "reload speed: %d" % bullet_reload_speed,
+        "weapon cooldown: %d" % weapon_cooldown_max,
         "level: %d" % level
     ]
     text_height = 25
@@ -294,8 +298,9 @@ def previous_level_option():
 def get_level_options():
     return [
         {'type': LevelOptions.SPEED},
-        {'type': LevelOptions.MAX_HEALTH},
         {'type': LevelOptions.RELOAD_RATE},
+        {'type': LevelOptions.MAX_HEALTH},
+        {'type': LevelOptions.WEAPON_COOLDOWN},
     ]
 
 def select_level_option():
@@ -307,17 +312,20 @@ def select_level_option():
     global bullet_reload_speed
     global level
     global crystals
+    global weapon_cooldown_max
     if level_option_selection == LevelOptions.SPEED.value:
         speed *= 1.2
     if level_option_selection == LevelOptions.RELOAD_RATE.value:
-        bullet_reload_speed *= 0.8
+        bullet_reload_speed *= 0.7
     if level_option_selection == LevelOptions.MAX_HEALTH.value:
         current_max = max_health
-        new_max = max_health * 1.2
+        new_max = max_health * 1.4
         difference = new_max - current_max
         max_health = new_max
         health += difference
         floating_texts.append(FloatingText(x, y-height/2, "+%d HP" % difference))
+    if level_option_selection == LevelOptions.WEAPON_COOLDOWN.value:
+        weapon_cooldown_max -= 2
 
     is_paused = False
     is_in_level_screen = False
@@ -327,8 +335,9 @@ def select_level_option():
 
 def get_level_option_text(type):
     if type == LevelOptions.SPEED: return "Gør mig ivrig! (+20% speed)"
-    if type == LevelOptions.RELOAD_RATE: return "Gør mig vild! (+20% reload speed)"
-    if type == LevelOptions.MAX_HEALTH: return "Gør mig sej! (+50% max HP)"
+    if type == LevelOptions.RELOAD_RATE: return "Gør mig vild! (+30% reload speed)"
+    if type == LevelOptions.MAX_HEALTH: return "Gør mig sej! (+40% max HP)"
+    if type == LevelOptions.WEAPON_COOLDOWN: return "Gør mig til Clinten! (Decrease weapon cooldown)"
 
 def get_level_option_color(option):
     if level_option_selection == option["type"].value:
@@ -897,9 +906,9 @@ while run:
             for event in pygame.event.get():
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_s:
-                        previous_level_option()
-                    if event.key == pygame.K_w:
                         next_level_option()
+                    if event.key == pygame.K_w:
+                        previous_level_option()
                     if event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                         select_level_option()
 
