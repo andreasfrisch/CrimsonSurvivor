@@ -213,6 +213,21 @@ def render_death_screen():
         text_rect.center = (game_area_max_x/2, first_text_y+text_height*i)
         win.blit(text, text_rect)
 
+def render_debug_texts():
+    texts = [
+        "health: %d/%d" % (health, max_health),
+        "speed: %d" % speed,
+        "reload speed: %d" % bullet_reload_speed,
+        "level: %d" % level
+    ]
+    text_height = 25
+    first_y = 5
+    for i, text in enumerate(texts):
+        text = floating_text_font.render(text, True, (255,255,255))
+        text_rect = text.get_rect()
+        text_rect.topleft = (5, first_y+(text_height+2)*i)
+        win.blit(text, text_rect)
+
 def next_menu_option():
     global menu_option_selection
     options = get_menu_options()
@@ -292,11 +307,11 @@ def select_level_option():
     global bullet_reload_speed
     global level
     global crystals
-    if type == LevelOptions.SPEED:
+    if level_option_selection == LevelOptions.SPEED.value:
         speed *= 1.2
-    if type == LevelOptions.RELOAD_RATE:
+    if level_option_selection == LevelOptions.RELOAD_RATE.value:
         bullet_reload_speed *= 0.8
-    if type == LevelOptions.MAX_HEALTH:
+    if level_option_selection == LevelOptions.MAX_HEALTH.value:
         current_max = max_health
         new_max = max_health * 1.2
         difference = new_max - current_max
@@ -522,14 +537,18 @@ def spawn_powerup(pos):
     if chance >= 90:
         x, y = pos
         typeInt = random.randint(0,9)
-        if typeInt in [0,1,2,3,4]:
+        if typeInt in range(5):
             powerups.append(PowerUp(x, y, PowerUpOptions.CRYSTAL))
+            return
         if typeInt in [5,6]:
             powerups.append(PowerUp(x, y, PowerUpOptions.HEALTH, 10))
+            return
         elif typeInt in [7,8]:
             powerups.append(PowerUp(x, y, PowerUpOptions.SPEED, 10))
+            return
         elif typeInt in [9]:
             powerups.append(PowerUp(x, y, PowerUpOptions.AMMO, 10))
+            return
 
 class SwarmMonster():
     def __init__(self, x, y, health, damage, size, speed):
@@ -838,6 +857,8 @@ while run:
         text_rect = text.get_rect()
         text_rect.center = (game_area_max_x/2, text_rect.height)
         win.blit(text, text_rect)
+
+        render_debug_texts()
 
         monster_spawn_rate_counter -= 1
         if monster_spawn_rate_counter <= 0:
