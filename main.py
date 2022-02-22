@@ -38,6 +38,9 @@ monster_half_size = monster_size/2
 monster_spawn_rate = 3
 monster_spawn_rate_increase = 20
 monster_spawn_rate_counter = 0
+big_monster_chance = 0
+swarm_chance = 10
+swarm_count = 5
 monsters = []
 monster_damage = 20
 
@@ -210,24 +213,54 @@ def select_menu_option():
         is_paused = False
         is_in_menu = False
 
+def generate_swarm(position):
+    new_swarm = []
+    for i in range(swarm_count):
+        x, y = position
+        if i == 0:
+            pass # no need to change coordinates
+        if i == 1:
+            y -= monster_size*2
+        if i == 2:
+            y += monster_size*2
+        if i == 3:
+            x -= monster_size*2
+        if i == 4:
+            x += monster_size*2
+
+        new_swarm.append(SwarmMonster(x, y, 1, 0.5, monster_size*0.8, monster_speed*1.5))
+    return new_swarm
+
+def randomise_monster_type(pos):
+    global big_monster_chance
+    global swarm_chance
+    percent = random.randint(0,99)
+    x, y = pos
+    if percent <= big_monster_chance:
+        big_monster_chance = 0
+        return [BigMonster(x, y, 5, monster_damage*4, monster_size*1.2, monster_speed*1.2)]
+    elif percent <= swarm_chance:
+        swarm_chance -= 20
+        return generate_swarm(pos)
+    else:
+        return [Monster(x, y)]
+
 def spawn_monster():
     border = random.randint(0, 3)
+    x = y = None
     if border == 0: #top
-        position = random.randint(0, game_area_max_y)
-        monster = Monster(position, 0-monster_size)
-        return monster
+        x = random.randint(0, game_area_max_y)
+        y = 0-monster_size
     if border == 1: #bottom
-        position = random.randint(0, game_area_max_y)
-        monster = Monster(position, game_area_max_y+monster_size)
-        return monster
+        x = random.randint(0, game_area_max_y)
+        y = game_area_max_y+monster_size
     if border == 2: #left
-        position = random.randint(0, game_area_max_x)
-        monster = Monster(0-monster_size, position)
-        return monster
+        y = random.randint(0, game_area_max_x)
+        x = 0-monster_size
     if border == 3: #right
-        position = random.randint(0, game_area_max_x)
-        monster = Monster(game_area_max_x+monster_size, position)
-        return monster
+        y = random.randint(0, game_area_max_x)
+        x = game_area_max_x+monster_size
+    return randomise_monster_type((x, y))
 
 class FloatingText():
     def __init__(self, x, y, text, time=0.5):
@@ -369,10 +402,95 @@ def spawn_powerup(pos):
         elif typeInt in [5]:
             powerups.append(PowerUp(x, y, PowerUpOptions.AMMO))
 
+class SwarmMonster():
+    def __init__(self, x, y, health, damage, size, speed):
+        self.x = x
+        self.y = y
+        self.health = health
+        self.damage = damage
+        self.size = size
+        self.speed = speed
+
+    def update(self, player_pos):
+        global run
+        global is_paused
+        global player_died
+        global health
+        dx, dy = get_coordinates_for_player_to_mouse_distance((self.x,self.y), player_pos, speed)
+        self.x += dx
+        self.y += dy
+
+        if self.x-monster_half_size < x < self.x+monster_half_size and self.y-monster_half_size < y < self.y+monster_half_size:
+            health -= self.damage
+            floating_texts.append(FloatingText(x, y-height/2, "-%d" % monster_damage))
+            if health <= 0:
+                is_paused = True
+                player_died = True
+
+            return False
+
+        return True
+
+    def deal_damage(self, damage):
+        self.health -= damage
+        if self.health <= 0:
+            return True
+        return False
+
+
+    def draw(self):
+        pygame.draw.rect(win, (133, 255, 156), (self.x-self.size/2, self.y-self.size/2, self.size, self.size))
+
+class BigMonster():
+    def __init__(self, x, y, health, damage, size, speed):
+        self.x = x
+        self.y = y
+        self.health = health
+        self.damage = damage
+        self.size = size
+        self.speed = speed
+
+    def update(self, player_pos):
+        global run
+        global is_paused
+        global player_died
+        global health
+        dx, dy = get_coordinates_for_player_to_mouse_distance((self.x,self.y), player_pos, speed)
+        self.x += dx
+        self.y += dy
+
+        if self.x-monster_half_size < x < self.x+monster_half_size and self.y-monster_half_size < y < self.y+monster_half_size:
+            health -= self.damage
+            floating_texts.append(FloatingText(x, y-height/2, "-%d" % monster_damage))
+            if health <= 0:
+                is_paused = True
+                player_died = True
+
+            return False
+
+        return True
+
+    def deal_damage(self, damage):
+        self.health -= damage
+        if self.health <= 0:
+            return True
+        return False
+
+
+    def draw(self):
+        pygame.draw.rect(win, (133, 20, 156), (self.x-self.size/2, self.y-self.size/2, self.size, self.size))
+
 class Monster():
     def __init__(self, x, y):
         self.x = x
         self.y = y
+        self.health = 1
+
+    def deal_damage(self, damage):
+        self.health -= damage
+        if self.health <= 0:
+            return True
+        return False
 
     def update(self, player_pos):
         global run
@@ -418,10 +536,13 @@ class Bullet():
         #check monster collision
         for i, monster in enumerate(monsters):
             if monster.x-monster_half_size < self.x < monster.x+monster_half_size and monster.y-monster_half_size < self.y < monster.y+monster_half_size:
-                spawn_powerup((monster.x, monster.y))
-                points += 1
-                monsters.pop(i)
-                return bullet_shoot_through
+                if monster.deal_damage(1):
+                    spawn_powerup((monster.x, monster.y))
+                    points += 1
+                    monsters.pop(i)
+                    return bullet_shoot_through
+                else:
+                    return bullet_shoot_through
 
         return True
 
@@ -463,6 +584,11 @@ while run:
         if weapon_cooldown > 0:
             weapon_cooldown -= 1
         mouse_pos = pygame.mouse.get_pos()
+
+        seconds = game_loops_to_seconds(timer)
+        if seconds % 10 == 0:
+            big_monster_chance += 5
+            swarm_chance += 5
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -572,7 +698,7 @@ while run:
         if monster_spawn_rate_counter <= 0:
             monster_spawn_rate += 1
             monster_spawn_rate_counter = monster_spawn_rate_increase
-            monsters.append(spawn_monster())
+            monsters += spawn_monster()
 
         for i, text in enumerate(floating_texts):
             if text.update():
