@@ -22,6 +22,7 @@ max_health = 100
 
 bullet_speed = 20
 bullet_reload_speed = 15
+bullet_shoot_through = False
 bullet_capacity = 4
 bullet_count = 4
 bullet_reload_count = 0
@@ -38,6 +39,13 @@ monsters = []
 monster_damage = 20
 
 points = 0
+
+powerups = []
+ongoing_effects = []
+effect_bar_height = 10
+effect_bar_length = 200
+bottom_bar_x = game_area_max_x - effect_bar_length - 10
+bottom_bar_y = game_area_max_y - effect_bar_height - 10
 
 menu_option_selection = 2
 game_in_progress = False
@@ -71,6 +79,15 @@ def reset_game_state():
     points = 0
     game_in_progress = False
     player_died = False
+
+class OngoingEffectOptions(Enum):
+    SPEED = 1
+    AMMO = 2
+
+class PowerUpOptions(Enum):
+    HEALTH = 0
+    SPEED = 1
+    AMMO = 2
 
 class MenuOptions(Enum):
     QUIT = 0
@@ -181,24 +198,129 @@ def spawn_monster():
     if border == 0: #top
         position = random.randint(0, game_area_max_y)
         monster = Monster(position, 0-monster_size)
-        #print("DEBUG >> monster spawn (x,y) = (%d,%d)" % (monster.x, monster.y))
         return monster
     if border == 1: #bottom
         position = random.randint(0, game_area_max_y)
         monster = Monster(position, game_area_max_y+monster_size)
-        #print("DEBUG >> monster spawn (x,y) = (%d,%d)" % (monster.x, monster.y))
         return monster
     if border == 2: #left
         position = random.randint(0, game_area_max_x)
         monster = Monster(0-monster_size, position)
-        #print("DEBUG >> monster spawn (x,y) = (%d,%d)" % (monster.x, monster.y))
         return monster
     if border == 3: #right
         position = random.randint(0, game_area_max_x)
         monster = Monster(game_area_max_x+monster_size, position)
-        #print("DEBUG >> monster spawn (x,y) = (%d,%d)" % (monster.x, monster.y))
         return monster
 
+class OngoingEffect():
+    def __init__(self, type, time):
+        self.type = type
+        self.init_time = time
+        self.loop_counts = time*1000/game_loop_frequency
+
+    def update(self):
+        self.loop_counts -= 1
+        if self.loop_counts <= 0:
+            return False
+        return True
+
+    def draw(self, index, total_effects):
+        global effect_bar_height
+        global effect_bar_length
+        global bottom_bar_x
+        global bottom_bar_y
+        seconds_passed = self.loop_counts*game_loop_frequency/1000
+        colored_size = effect_bar_length * float(seconds_passed / self.init_time)
+        if self.type == OngoingEffectOptions.SPEED:
+            pygame.draw.rect(win, (120, 125, 45), (bottom_bar_x, bottom_bar_y-i*(effect_bar_height+5), effect_bar_length, effect_bar_height))
+            pygame.draw.rect(win, (240, 255, 90), (bottom_bar_x+(effect_bar_length-colored_size), bottom_bar_y-i*(effect_bar_height+5), colored_size, effect_bar_height))
+        elif self.type == OngoingEffectOptions.AMMO:
+            pygame.draw.rect(win, (0, 125, 125), (bottom_bar_x, bottom_bar_y-i*(effect_bar_height+5), effect_bar_length, effect_bar_height))
+            pygame.draw.rect(win, (0, 255, 255), (bottom_bar_x+(effect_bar_length-colored_size), bottom_bar_y-i*(effect_bar_height+5), colored_size, effect_bar_height))
+        else:
+            pass
+
+
+    def remove(self):
+        global speed
+        global bullet_reload_speed
+        global bullet_shoot_through
+        if self.type == OngoingEffectOptions.SPEED:
+            speed /= 2
+        elif self.type == OngoingEffectOptions.AMMO:
+            bullet_reload_speed = 15
+            bullet_shoot_through = False
+        else:
+            pass
+
+    def update_time(self, time):
+        self.loop_counts = time*1000/game_loop_frequency
+
+
+class PowerUp():
+    def __init__(self, x, y, type):
+        self.x = x
+        self.y = y
+        self.orig_y = y
+        self.type = type
+        self.y_direction = -1
+
+    def draw(self, window):
+        if self.type == PowerUpOptions.HEALTH:
+            pygame.draw.circle(window, (255, 0, 0), (self.x, self.y), 4)
+        if self.type == PowerUpOptions.AMMO:
+            pygame.draw.circle(window, (0, 255, 255), (self.x, self.y), 4)
+        if self.type == PowerUpOptions.SPEED:
+            pygame.draw.circle(window, (240, 255, 90), (self.x, self.y), 4)
+
+    def update(self):
+        self.y += self.y_direction
+        if self.y >= self.orig_y + 2 or self.y <= self.orig_y-2:
+            self.y_direction *= -1
+
+        if x-width/2 < self.x < x+width/2 and y-height/2 < self.y < y+height/2:
+            self.apply()
+            return False
+
+        return True
+
+    def apply(self):
+        global health
+        global max_health
+        global speed
+        global ongoing_effects
+        global bullet_reload_speed
+        global bullet_shoot_through
+        if self.type == PowerUpOptions.HEALTH:
+            health += 25
+            if health > max_health:
+                health = max_health
+        elif self.type == PowerUpOptions.SPEED:
+            ongoing_effects.append(OngoingEffect(OngoingEffectOptions.SPEED, 10))
+            speed *= 2
+        elif self.type == PowerUpOptions.AMMO:
+            for e in ongoing_effects:
+                if e.type == OngoingEffectOptions.AMMO:
+                    e.update_time(10)
+                    return
+            ongoing_effects.append(OngoingEffect(OngoingEffectOptions.AMMO, 10))
+            bullet_reload_speed = 1
+            bullet_shoot_through = True
+
+
+
+def spawn_powerup(pos):
+    global powerups
+    chance = random.randint(0,99)
+    if chance > 85:
+        x, y = pos
+        typeInt = random.randint(0,5)
+        if typeInt in [0,1,2]:
+            powerups.append(PowerUp(x, y, PowerUpOptions.HEALTH))
+        elif typeInt in [3,4]:
+            powerups.append(PowerUp(x, y, PowerUpOptions.SPEED))
+        elif typeInt in [5]:
+            powerups.append(PowerUp(x, y, PowerUpOptions.AMMO))
 
 class Monster():
     def __init__(self, x, y):
@@ -238,6 +360,7 @@ class Bullet():
 
     def update(self, monsters):
         global points
+        global bullet_shoot_through
         self.x -= self.dx
         self.y -= self.dy
 
@@ -247,9 +370,10 @@ class Bullet():
         #check monster collision
         for i, monster in enumerate(monsters):
             if monster.x-monster_half_size < self.x < monster.x+monster_half_size and monster.y-monster_half_size < self.y < monster.y+monster_half_size:
-                monsters.pop(i)
+                spawn_powerup((monster.x, monster.y))
                 points += 1
-                return False
+                monsters.pop(i)
+                return bullet_shoot_through
 
         return True
 
@@ -322,6 +446,20 @@ while run:
 
         win.fill((0,0,0))
 
+        for i, powerup in enumerate(powerups):
+            if powerup.update():
+                powerup.draw(win)
+            else:
+                powerups.pop(i)
+
+        for i, effect in enumerate(ongoing_effects):
+            if effect.update():
+                total_effects = len(ongoing_effects)
+                effect.draw(i, total_effects)
+            else:
+                effect.remove()
+                ongoing_effects.pop(i)
+
         for i, bullet in enumerate(bullets):
             if bullet.update(monsters):
                 bullet.draw(win)
@@ -352,7 +490,6 @@ while run:
         ammo_spacing = 1
         bullet_space = width - (bullet_capacity*1)*ammo_spacing
         per_bullet_space = float(bullet_space/bullet_capacity)
-        print("DEBUG >> space per bullet: %d" % per_bullet_space)
         for i in range(bullet_count):
             pygame.draw.rect(win, (0, 255, 255), (x+width/2-per_bullet_space*(i+1)-i*ammo_spacing, y+height/2+4+5, per_bullet_space, bullet_box_height))
 
