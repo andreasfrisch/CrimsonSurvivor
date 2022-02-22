@@ -51,6 +51,7 @@ font = pygame.font.Font('freesansbold.ttf', 32)
 win = pygame.display.set_mode((game_area_max_x, game_area_max_y), pygame.FULLSCREEN)
 pygame.display.set_caption("Demo Game")
 #pygame.mouse.set_cursor((8,8),(0,0),(0,0,0,0,0,0,0,0),(0,0,0,0,0,0,0,0))
+pygame.mouse.set_visible(False)
 
 ##OBJECTS AND STUFF:
 
@@ -265,6 +266,10 @@ def draw_aim_marker(window, mouse_pos, player_pos):
     #pygame.draw.circle(win, (0, 255, 0), (mx, my), 5) # mouse debug
     pygame.draw.circle(win, (0, 255, 255), (px-dx, py-dy), 5)
 
+def draw_aim_marker_at_position(window, position):
+    pygame.draw.circle(win, (0, 255, 255), position, 10, 2)
+    pygame.draw.circle(win, (0, 255, 255), position, 1)
+
 def get_coordinates_for_player_to_mouse_distance(mouse_pos, player_pos, distance: int):
     mx, my = mouse_pos
     px, py = player_pos
@@ -352,6 +357,7 @@ while run:
             pygame.draw.rect(win, (0, 255, 255), (x+width/2-per_bullet_space*(i+1)-i*ammo_spacing, y+height/2+4+5, per_bullet_space, bullet_box_height))
 
         #draw_aim_marker(win, mouse_pos, (x, y))
+        draw_aim_marker_at_position(win, mouse_pos)
 
         text = font.render("Kills: %d" % points, True, (255,0,0), (0,0,0))
         text_rect = text.get_rect()
