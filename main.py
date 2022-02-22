@@ -5,6 +5,7 @@ from enum import Enum
 
 ## SETTINGS:
 game_loop_frequency = 30
+timer = 0
 run = True
 is_paused = True
 is_in_menu = True
@@ -71,6 +72,9 @@ def reset_game_state():
     global points
     global game_in_progress
     global player_died
+    global ongoing_effects
+    global powerups
+    global timer
 
     monsters = []
     bullets = []
@@ -79,6 +83,9 @@ def reset_game_state():
     points = 0
     game_in_progress = False
     player_died = False
+    powerups = []
+    ongoing_effects = []
+    timer = 0
 
 class OngoingEffectOptions(Enum):
     SPEED = 1
@@ -143,8 +150,12 @@ def render_menu_options():
         win.blit(text, text_rect)
 
 def render_death_screen():
+    total_seconds = game_loops_to_seconds(timer)
+    seconds = total_seconds % 60
+    minutes = total_seconds / 60
     texts = [
         font.render("You Died", True, (255, 0, 0), menu_color),
+        font.render("You survived for %02d:%02d" % (minutes, seconds), True, (255,0,0), menu_color)
         font.render("You Got %d Kills" % points, True, (255, 0, 0), menu_color),
         font.render("press any button", True, (255, 0, 0), menu_color),
     ]
@@ -404,11 +415,14 @@ def get_coordinates_for_player_to_mouse_distance(mouse_pos, player_pos, distance
 
     return dx, dy
 
+def game_loops_to_seconds(loops):
+    return loops*game_loop_frequency/1000
 
 #Hacky main loop
 while run:
     pygame.time.delay(game_loop_frequency)
     if not is_paused:
+        timer += 1
         mouse_pos = pygame.mouse.get_pos()
 
         for event in pygame.event.get():
@@ -499,6 +513,14 @@ while run:
         text = font.render("Kills: %d" % points, True, (255,0,0), (0,0,0))
         text_rect = text.get_rect()
         text_rect.center = (game_area_max_x-text_rect.width, text_rect.height)
+        win.blit(text, text_rect)
+
+        total_seconds = game_loops_to_seconds(timer)
+        seconds = total_seconds % 60
+        minutes = total_seconds / 60
+        text = font.render("%02d:%02d" % (minutes, seconds), True, (255,255,255), (0,0,0))
+        text_rect = text.get_rect()
+        text_rect.center = (game_area_max_x/2, text_rect.height)
         win.blit(text, text_rect)
 
         monster_spawn_rate_counter -= 1
