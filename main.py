@@ -37,8 +37,11 @@ monster_size = 30
 monster_half_size = monster_size/2
 monster_spawn_rate = 3
 monster_spawn_rate_increase = 20
+monster_spawn_rate_minimum = 5
 monster_spawn_rate_counter = 0
-big_monster_chance = 0
+big_monster_base_chance = 0
+big_monster_chance = big_monster_base_chance
+big_monster_max_chance = 50
 swarm_chance = 10
 swarm_count = 5
 monsters = []
@@ -83,6 +86,10 @@ def reset_game_state():
     global powerups
     global timer
     global floating_texts
+    global monster_spawn_rate_increase
+    global big_monster_base_chance
+    global big_monster_chance
+    global swarm_chance
 
     monsters = []
     bullets = []
@@ -95,6 +102,10 @@ def reset_game_state():
     ongoing_effects = []
     timer = 0
     floating_texts = []
+    monster_spawn_rate_increase = 20
+    big_monster_base_chance = 0
+    big_monster_chance = big_monster_base_chance
+    swarm_chance = 10
 
 class OngoingEffectOptions(Enum):
     SPEED = 1
@@ -228,7 +239,7 @@ def generate_swarm(position):
         if i == 4:
             x += monster_size*2
 
-        new_swarm.append(SwarmMonster(x, y, 1, 0.5, monster_size*0.8, monster_speed*1.5))
+        new_swarm.append(SwarmMonster(x, y, 1, 0.5, monster_size*0.8, monster_speed*2.5))
     return new_swarm
 
 def randomise_monster_type(pos):
@@ -237,7 +248,7 @@ def randomise_monster_type(pos):
     percent = random.randint(0,99)
     x, y = pos
     if percent <= big_monster_chance:
-        big_monster_chance = 0
+        big_monster_chance = big_monster_base_chance
         return [BigMonster(x, y, 5, monster_damage*4, monster_size*1.2, monster_speed*1.2)]
     elif percent <= swarm_chance:
         swarm_chance -= 20
@@ -338,6 +349,7 @@ class PowerUp():
         self.orig_y = y
         self.type = type
         self.y_direction = -1
+        self.loop_counts = 10*1000/game_loop_frequency
 
     def draw(self, window):
         if self.type == PowerUpOptions.HEALTH:
@@ -348,7 +360,12 @@ class PowerUp():
             pygame.draw.circle(window, (240, 255, 90), (self.x, self.y), 4)
 
     def update(self):
+        self.loop_counts -= 1
+        if self.loop_counts <= 0:
+            return False
+
         self.y += self.y_direction
+
         if self.y >= self.orig_y + 2 or self.y <= self.orig_y-2:
             self.y_direction *= -1
 
@@ -379,9 +396,9 @@ class PowerUp():
         elif self.type == PowerUpOptions.AMMO:
             for e in ongoing_effects:
                 if e.type == OngoingEffectOptions.AMMO:
-                    e.update_time(10)
+                    e.update_time(5)
                     return
-            ongoing_effects.append(OngoingEffect(OngoingEffectOptions.AMMO, 10))
+            ongoing_effects.append(OngoingEffect(OngoingEffectOptions.AMMO, 5))
             bullet_reload_speed = 1
             bullet_shoot_through = True
             weapon_cooldown_max = 3
@@ -392,14 +409,16 @@ class PowerUp():
 def spawn_powerup(pos):
     global powerups
     chance = random.randint(0,99)
-    if chance > 85:
+    if chance >= 90:
         x, y = pos
-        typeInt = random.randint(0,5)
-        if typeInt in [0,1,2]:
+        typeInt = random.randint(0,9)
+        if typeInt in [0,1,2,3,4]:
+            pass # TODO gems
+        if typeInt in [5,6]:
             powerups.append(PowerUp(x, y, PowerUpOptions.HEALTH))
-        elif typeInt in [3,4]:
+        elif typeInt in [7,8]:
             powerups.append(PowerUp(x, y, PowerUpOptions.SPEED))
-        elif typeInt in [5]:
+        elif typeInt in [9]:
             powerups.append(PowerUp(x, y, PowerUpOptions.AMMO))
 
 class SwarmMonster():
@@ -588,7 +607,14 @@ while run:
         seconds = game_loops_to_seconds(timer)
         if seconds % 10 == 0:
             big_monster_chance += 5
-            swarm_chance += 5
+            swarm_chance += 10
+        if seconds % 20 == 0:
+            monster_spawn_rate_increase -= 2
+            if monster_spawn_rate_increase < monster_spawn_rate_minimum:
+                monster_spawn_rate_increase = monster_spawn_rate_minimum
+            big_monster_base_chance += 5
+            if big_monster_base_chance > big_monster_max_chance:
+                big_monster_base_chance = big_monster_max_chance
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -696,9 +722,9 @@ while run:
 
         monster_spawn_rate_counter -= 1
         if monster_spawn_rate_counter <= 0:
-            monster_spawn_rate += 1
             monster_spawn_rate_counter = monster_spawn_rate_increase
-            monsters += spawn_monster()
+            for _ in range(monster_spawn_rate):
+                monsters += spawn_monster()
 
         for i, text in enumerate(floating_texts):
             if text.update():
