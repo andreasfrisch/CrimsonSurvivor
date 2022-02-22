@@ -43,6 +43,7 @@ points = 0
 
 powerups = []
 ongoing_effects = []
+floating_texts = []
 effect_bar_height = 10
 effect_bar_length = 200
 bottom_bar_x = game_area_max_x - effect_bar_length - 10
@@ -57,6 +58,7 @@ pygame.init()
 random.seed()
 pygame.font.init()
 font = pygame.font.Font('freesansbold.ttf', 32)
+floating_text_font = pygame.font.Font('freesansbold.ttf', 15)
 win = pygame.display.set_mode((game_area_max_x, game_area_max_y), pygame.FULLSCREEN)
 pygame.display.set_caption("Demo Game")
 #pygame.mouse.set_cursor((8,8),(0,0),(0,0,0,0,0,0,0,0),(0,0,0,0,0,0,0,0))
@@ -75,6 +77,7 @@ def reset_game_state():
     global ongoing_effects
     global powerups
     global timer
+    global floating_texts
 
     monsters = []
     bullets = []
@@ -86,6 +89,7 @@ def reset_game_state():
     powerups = []
     ongoing_effects = []
     timer = 0
+    floating_texts = []
 
 class OngoingEffectOptions(Enum):
     SPEED = 1
@@ -155,7 +159,7 @@ def render_death_screen():
     minutes = total_seconds / 60
     texts = [
         font.render("You Died", True, (255, 0, 0), menu_color),
-        font.render("You survived for %02d:%02d" % (minutes, seconds), True, (255,0,0), menu_color)
+        font.render("You survived for %02d:%02d" % (minutes, seconds), True, (255,0,0), menu_color),
         font.render("You Got %d Kills" % points, True, (255, 0, 0), menu_color),
         font.render("press any button", True, (255, 0, 0), menu_color),
     ]
@@ -222,6 +226,28 @@ def spawn_monster():
         position = random.randint(0, game_area_max_x)
         monster = Monster(game_area_max_x+monster_size, position)
         return monster
+
+class FloatingText():
+    def __init__(self, x, y, text, time=0.5):
+        self.x = x
+        self.y = y
+        self.text = text
+        self.loop_counts = time*1000/game_loop_frequency
+        self.y_speed = -2
+
+    def update(self):
+        self.loop_counts -= 1
+        if self.loop_counts <= 0:
+            return False
+        self.y += self.y_speed
+        return True
+
+    def draw(self, window):
+        text = floating_text_font.render(self.text, True, (255,255,255))
+        text_rect = text.get_rect()
+        text_rect.center = (self.x, self.y)
+        window.blit(text, text_rect)
+
 
 class OngoingEffect():
     def __init__(self, type, time):
@@ -302,13 +328,16 @@ class PowerUp():
         global ongoing_effects
         global bullet_reload_speed
         global bullet_shoot_through
+        global floating_texts
         if self.type == PowerUpOptions.HEALTH:
             health += 25
             if health > max_health:
                 health = max_health
+            floating_texts.append(FloatingText(x, y-height/2, "+25 HP"))
         elif self.type == PowerUpOptions.SPEED:
             ongoing_effects.append(OngoingEffect(OngoingEffectOptions.SPEED, 10))
             speed *= 2
+            floating_texts.append(FloatingText(x, y-height/2, "speed"))
         elif self.type == PowerUpOptions.AMMO:
             for e in ongoing_effects:
                 if e.type == OngoingEffectOptions.AMMO:
@@ -317,6 +346,7 @@ class PowerUp():
             ongoing_effects.append(OngoingEffect(OngoingEffectOptions.AMMO, 10))
             bullet_reload_speed = 1
             bullet_shoot_through = True
+            floating_texts.append(FloatingText(x, y-height/2, "amooook!"))
 
 
 
@@ -349,6 +379,7 @@ class Monster():
 
         if self.x-monster_half_size < x < self.x+monster_half_size and self.y-monster_half_size < y < self.y+monster_half_size:
             health -= monster_damage
+            floating_texts.append(FloatingText(x, y-height/2, "-%d" % monster_damage))
             if health <= 0:
                 is_paused = True
                 player_died = True
@@ -528,6 +559,12 @@ while run:
             monster_spawn_rate += 1
             monster_spawn_rate_counter = monster_spawn_rate_increase
             monsters.append(spawn_monster())
+
+        for i, text in enumerate(floating_texts):
+            if text.update():
+                text.draw(win)
+            else:
+                floating_texts.pop(i)
 
     else:
         if is_in_menu:
