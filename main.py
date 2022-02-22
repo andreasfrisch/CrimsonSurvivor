@@ -29,6 +29,8 @@ bullet_count = 4
 bullet_reload_count = 0
 bullet_box_height = 3
 bullets = []
+weapon_cooldown = 0
+weapon_cooldown_max = 10
 
 monster_speed = 3
 monster_size = 30
@@ -282,11 +284,13 @@ class OngoingEffect():
         global speed
         global bullet_reload_speed
         global bullet_shoot_through
+        global weapon_cooldown_max
         if self.type == OngoingEffectOptions.SPEED:
             speed /= 2
         elif self.type == OngoingEffectOptions.AMMO:
             bullet_reload_speed = 15
             bullet_shoot_through = False
+            weapon_cooldown_max = 10
         else:
             pass
 
@@ -329,6 +333,7 @@ class PowerUp():
         global bullet_reload_speed
         global bullet_shoot_through
         global floating_texts
+        global weapon_cooldown_max
         if self.type == PowerUpOptions.HEALTH:
             health += 25
             if health > max_health:
@@ -346,6 +351,7 @@ class PowerUp():
             ongoing_effects.append(OngoingEffect(OngoingEffectOptions.AMMO, 10))
             bullet_reload_speed = 1
             bullet_shoot_through = True
+            weapon_cooldown_max = 3
             floating_texts.append(FloatingText(x, y-height/2, "amooook!"))
 
 
@@ -454,23 +460,31 @@ while run:
     pygame.time.delay(game_loop_frequency)
     if not is_paused:
         timer += 1
+        if weapon_cooldown > 0:
+            weapon_cooldown -= 1
         mouse_pos = pygame.mouse.get_pos()
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                left, _, right = pygame.mouse.get_pressed()
-                if left and bullet_count > 0:
-                    dx, dy = get_coordinates_for_player_to_mouse_distance(mouse_pos, (x,y), bullet_speed)
-                    bullets.append(Bullet(x, y, dx, dy))
-                    bullet_count -= 1
+            #if event.type == pygame.MOUSEBUTTONDOWN:
+            #    left, _, right = pygame.mouse.get_pressed()
+            #    if left and bullet_count > 0:
+            #        dx, dy = get_coordinates_for_player_to_mouse_distance(mouse_pos, (x,y), bullet_speed)
+            #        bullets.append(Bullet(x, y, dx, dy))
+            #        bullet_count -= 1
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     is_paused = True
                     is_in_menu = True
                     menu_option_selection = 3
 
+        left, _, right = pygame.mouse.get_pressed()
+        if left and bullet_count > 0 and weapon_cooldown == 0:
+            dx, dy = get_coordinates_for_player_to_mouse_distance(mouse_pos, (x,y), bullet_speed)
+            bullets.append(Bullet(x, y, dx, dy))
+            bullet_count -= 1
+            weapon_cooldown = weapon_cooldown_max
         keys = pygame.key.get_pressed()
         if keys[pygame.K_w]:
             y -= speed
