@@ -101,6 +101,8 @@ def reset_game_state():
     global max_health
     global health
     global bullet_reload_speed
+    global monster_spawn_rate
+    global bullet_shoot_through
 
     monsters = []
     bullets = []
@@ -123,6 +125,8 @@ def reset_game_state():
     max_health = 100
     health = 100
     bullet_reload_speed = 15
+    monster_spawn_rate = 1
+    bullet_shoot_through = False
 
 class OngoingEffectOptions(Enum):
     SPEED = 1
@@ -144,8 +148,6 @@ class LevelOptions(Enum):
     SPEED = 0
     RELOAD_RATE = 1
     MAX_HEALTH = 2
-    BULLET_THROUGH = 3
-    BULLET_SIZE = 4
 
 def get_menu_options():
     global game_in_progress
@@ -723,6 +725,8 @@ while run:
             big_monster_base_chance += 5
             if big_monster_base_chance > big_monster_max_chance:
                 big_monster_base_chance = big_monster_max_chance
+        if seconds % 60 == 0:
+            monster_spawn_rate += 1
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
