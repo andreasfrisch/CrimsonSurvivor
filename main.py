@@ -9,6 +9,7 @@ timer = 0
 run = True
 is_paused = True
 is_in_menu = True
+is_in_level_screen = False
 player_died = False
 game_area_max_x = 1920
 game_area_max_y = 1080
@@ -16,10 +17,13 @@ x = game_area_max_x/2
 y = game_area_max_y/2
 width = 20
 height = 20
-speed = 3
+speed = 4
 aim_distance = 50
 health = 100
 max_health = 100
+crystals = 0
+level = 0
+crystals_for_level = [1,1,2,3,5,8,13,21,34]
 
 bullet_speed = 20
 bullet_reload_speed = 15
@@ -35,7 +39,7 @@ weapon_cooldown_max = 10
 monster_speed = 3
 monster_size = 30
 monster_half_size = monster_size/2
-monster_spawn_rate = 3
+monster_spawn_rate = 1
 monster_spawn_rate_increase = 20
 monster_spawn_rate_minimum = 5
 monster_spawn_rate_counter = 0
@@ -57,6 +61,7 @@ effect_bar_length = 200
 bottom_bar_x = game_area_max_x - effect_bar_length - 10
 bottom_bar_y = game_area_max_y - effect_bar_height - 10
 
+level_option_selection = 0
 menu_option_selection = 2
 game_in_progress = False
 menu_color = (125,125,125)
@@ -90,6 +95,12 @@ def reset_game_state():
     global big_monster_base_chance
     global big_monster_chance
     global swarm_chance
+    global crystals
+    global level
+    global speed
+    global max_health
+    global health
+    global bullet_reload_speed
 
     monsters = []
     bullets = []
@@ -106,6 +117,12 @@ def reset_game_state():
     big_monster_base_chance = 0
     big_monster_chance = big_monster_base_chance
     swarm_chance = 10
+    crystals = 0
+    level = 0
+    speed = 4
+    max_health = 100
+    health = 100
+    bullet_reload_speed = 15
 
 class OngoingEffectOptions(Enum):
     SPEED = 1
@@ -115,12 +132,20 @@ class PowerUpOptions(Enum):
     HEALTH = 0
     SPEED = 1
     AMMO = 2
+    CRYSTAL = 3
 
 class MenuOptions(Enum):
     QUIT = 0
     SETTINGS = 1
     NEW_GAME = 2
     CONTINUE = 3
+
+class LevelOptions(Enum):
+    SPEED = 0
+    RELOAD_RATE = 1
+    MAX_HEALTH = 2
+    BULLET_THROUGH = 3
+    BULLET_SIZE = 4
 
 def get_menu_options():
     global game_in_progress
@@ -223,6 +248,76 @@ def select_menu_option():
     if menu_option_selection == MenuOptions.CONTINUE.value:
         is_paused = False
         is_in_menu = False
+
+def render_level_options():
+    options = get_level_options()
+    level_option_height = 30
+    first_option_y = game_area_max_y/2-len(options)/2*level_option_height
+    for i, option in enumerate(options):
+        text_color = get_level_option_color(option)
+        text = font.render(get_level_option_text(option["type"]), True, text_color, menu_color)
+        text_rect = text.get_rect()
+        text_rect.center = (game_area_max_x/2, first_option_y+level_option_height*i)
+        win.blit(text, text_rect)
+
+def next_level_option():
+    global level_option_selection
+    options = get_level_options()
+    level_option_selection += 1
+    if level_option_selection > len(options):
+        level_option_selection = 0
+
+def previous_level_option():
+    global level_option_selection
+    options = get_level_options()
+    level_option_selection -= 1
+    if level_option_selection < 0:
+        level_option_selection = len(options)-1
+
+def get_level_options():
+    return [
+        {'type': LevelOptions.SPEED},
+        {'type': LevelOptions.MAX_HEALTH},
+        {'type': LevelOptions.RELOAD_RATE},
+    ]
+
+def select_level_option():
+    global is_paused
+    global is_in_level_screen
+    global speed
+    global max_health
+    global health
+    global bullet_reload_speed
+    global level
+    global crystals
+    if type == LevelOptions.SPEED:
+        speed *= 1.2
+    if type == LevelOptions.RELOAD_RATE:
+        bullet_reload_speed *= 0.8
+    if type == LevelOptions.MAX_HEALTH:
+        current_max = max_health
+        new_max = max_health * 1.2
+        difference = new_max - current_max
+        max_health = new_max
+        health += difference
+        floating_texts.append(FloatingText(x, y-height/2, "+%d HP" % difference))
+
+    is_paused = False
+    is_in_level_screen = False
+    level += 1
+    crystals = 0
+
+
+def get_level_option_text(type):
+    if type == LevelOptions.SPEED: return "Gør mig ivrig! (+20% speed)"
+    if type == LevelOptions.RELOAD_RATE: return "Gør mig vild! (+20% reload speed)"
+    if type == LevelOptions.MAX_HEALTH: return "Gør mig sej! (+50% max HP)"
+
+def get_level_option_color(option):
+    if level_option_selection == option["type"].value:
+        return (0,255,255)
+    else:
+        return (0,0,255)
 
 def generate_swarm(position):
     new_swarm = []
@@ -343,13 +438,15 @@ class OngoingEffect():
 
 
 class PowerUp():
-    def __init__(self, x, y, type):
+    def __init__(self, x, y, type, time=None):
         self.x = x
         self.y = y
         self.orig_y = y
         self.type = type
         self.y_direction = -1
-        self.loop_counts = 10*1000/game_loop_frequency
+        self.time = time
+        if not self.time == None:
+            self.loop_counts = time*1000/game_loop_frequency
 
     def draw(self, window):
         if self.type == PowerUpOptions.HEALTH:
@@ -358,11 +455,14 @@ class PowerUp():
             pygame.draw.circle(window, (0, 255, 255), (self.x, self.y), 4)
         if self.type == PowerUpOptions.SPEED:
             pygame.draw.circle(window, (240, 255, 90), (self.x, self.y), 4)
+        if self.type == PowerUpOptions.CRYSTAL:
+            pygame.draw.circle(window, (133, 20, 156), (self.x, self.y), 4)
 
     def update(self):
-        self.loop_counts -= 1
-        if self.loop_counts <= 0:
-            return False
+        if not self.time == None:
+            self.loop_counts -= 1
+            if self.loop_counts <= 0:
+                return False
 
         self.y += self.y_direction
 
@@ -384,6 +484,9 @@ class PowerUp():
         global bullet_shoot_through
         global floating_texts
         global weapon_cooldown_max
+        global crystals
+        global is_paused
+        global is_in_level_screen
         if self.type == PowerUpOptions.HEALTH:
             health += 25
             if health > max_health:
@@ -403,6 +506,11 @@ class PowerUp():
             bullet_shoot_through = True
             weapon_cooldown_max = 3
             floating_texts.append(FloatingText(x, y-height/2, "amooook!"))
+        elif self.type == PowerUpOptions.CRYSTAL:
+            crystals += 1
+            if crystals == crystals_for_level[level]:
+                is_paused = True
+                is_in_level_screen = True
 
 
 
@@ -413,13 +521,13 @@ def spawn_powerup(pos):
         x, y = pos
         typeInt = random.randint(0,9)
         if typeInt in [0,1,2,3,4]:
-            pass # TODO gems
+            powerups.append(PowerUp(x, y, PowerUpOptions.CRYSTAL))
         if typeInt in [5,6]:
-            powerups.append(PowerUp(x, y, PowerUpOptions.HEALTH))
+            powerups.append(PowerUp(x, y, PowerUpOptions.HEALTH, 10))
         elif typeInt in [7,8]:
-            powerups.append(PowerUp(x, y, PowerUpOptions.SPEED))
+            powerups.append(PowerUp(x, y, PowerUpOptions.SPEED, 10))
         elif typeInt in [9]:
-            powerups.append(PowerUp(x, y, PowerUpOptions.AMMO))
+            powerups.append(PowerUp(x, y, PowerUpOptions.AMMO, 10))
 
 class SwarmMonster():
     def __init__(self, x, y, health, damage, size, speed):
@@ -435,13 +543,13 @@ class SwarmMonster():
         global is_paused
         global player_died
         global health
-        dx, dy = get_coordinates_for_player_to_mouse_distance((self.x,self.y), player_pos, speed)
+        dx, dy = get_coordinates_for_player_to_mouse_distance((self.x,self.y), player_pos, self.speed)
         self.x += dx
         self.y += dy
 
         if self.x-monster_half_size < x < self.x+monster_half_size and self.y-monster_half_size < y < self.y+monster_half_size:
             health -= self.damage
-            floating_texts.append(FloatingText(x, y-height/2, "-%d" % monster_damage))
+            floating_texts.append(FloatingText(x, y-height/2, "-%d" % self.damage))
             if health <= 0:
                 is_paused = True
                 player_died = True
@@ -474,13 +582,13 @@ class BigMonster():
         global is_paused
         global player_died
         global health
-        dx, dy = get_coordinates_for_player_to_mouse_distance((self.x,self.y), player_pos, speed)
+        dx, dy = get_coordinates_for_player_to_mouse_distance((self.x,self.y), player_pos, self.speed)
         self.x += dx
         self.y += dy
 
         if self.x-monster_half_size < x < self.x+monster_half_size and self.y-monster_half_size < y < self.y+monster_half_size:
             health -= self.damage
-            floating_texts.append(FloatingText(x, y-height/2, "-%d" % monster_damage))
+            floating_texts.append(FloatingText(x, y-height/2, "-%d" % self.damage))
             if health <= 0:
                 is_paused = True
                 player_died = True
@@ -707,10 +815,17 @@ while run:
         #draw_aim_marker(win, mouse_pos, (x, y))
         draw_aim_marker_at_position(win, mouse_pos)
 
-        text = font.render("Kills: %d" % points, True, (255,0,0), (0,0,0))
+        text = font.render("Crystals: %d" % crystals, True, (133,20,156))
         text_rect = text.get_rect()
-        text_rect.center = (game_area_max_x-text_rect.width, text_rect.height)
+        align_width = text_rect.width
+        text_rect.center = (game_area_max_x-align_width, text_rect.height*2+5)
         win.blit(text, text_rect)
+
+        text = font.render("Kills: %d" % points, True, (255,0,0))
+        text_rect = text.get_rect()
+        text_rect.center = (game_area_max_x-align_width, text_rect.height)
+        win.blit(text, text_rect)
+
 
         total_seconds = game_loops_to_seconds(timer)
         seconds = total_seconds % 60
@@ -752,6 +867,23 @@ while run:
             win.blit(overlay, pygame.Rect(0, 0, game_area_max_x, game_area_max_y))
 
             render_menu_options()
+
+        if is_in_level_screen:
+            for event in pygame.event.get():
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_s:
+                        previous_level_option()
+                    if event.key == pygame.K_w:
+                        next_level_option()
+                    if event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
+                        select_level_option()
+
+            overlay = pygame.Surface((game_area_max_x, game_area_max_y))
+            overlay.fill(menu_color)
+            overlay.set_alpha(100)
+            win.blit(overlay, pygame.Rect(0, 0, game_area_max_x, game_area_max_y))
+
+            render_level_options()
 
         if player_died:
             for event in pygame.event.get():
