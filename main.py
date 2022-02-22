@@ -160,7 +160,7 @@ def render_death_screen():
     texts = [
         font.render("You Died", True, (255, 0, 0), menu_color),
         font.render("You survived for %02d:%02d" % (minutes, seconds), True, (255,0,0), menu_color),
-        font.render("You Got %d Kills" % points, True, (255, 0, 0), menu_color),
+        font.render("You Got %d %s" % (points, "Kill" if points == 1 else "Kills"), True, (255, 0, 0), menu_color),
         font.render("press any button", True, (255, 0, 0), menu_color),
     ]
     text_height = 50
