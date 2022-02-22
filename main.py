@@ -9,31 +9,33 @@ run = True
 is_paused = True
 is_in_menu = True
 player_died = False
-game_area_max_x = 800
-game_area_max_y = 600
+game_area_max_x = 1920
+game_area_max_y = 1080
 x = game_area_max_x/2
 y = game_area_max_y/2
 width = 20
 height = 20
 speed = 3
 aim_distance = 50
+health = 100
+max_health = 100
 
-bullet_speed = 5
+bullet_speed = 20
 bullet_reload_speed = 15
 bullet_capacity = 4
 bullet_count = 4
 bullet_reload_count = 0
-bullet_box_width = 4.5
-bullet_box_height = 4
+bullet_box_height = 3
 bullets = []
 
-monster_speed = 2
+monster_speed = 3
 monster_size = 30
 monster_half_size = monster_size/2
 monster_spawn_rate = 3
 monster_spawn_rate_increase = 20
 monster_spawn_rate_counter = 0
 monsters = []
+monster_damage = 20
 
 points = 0
 
@@ -46,10 +48,9 @@ pygame.init()
 random.seed()
 pygame.font.init()
 font = pygame.font.Font('freesansbold.ttf', 32)
-#win = pygame.display.set_mode((game_area_max_x, game_area_max_y), pygame.FULLSCREEN)
-win = pygame.display.set_mode((game_area_max_x, game_area_max_y))
+win = pygame.display.set_mode((game_area_max_x, game_area_max_y), pygame.FULLSCREEN)
 pygame.display.set_caption("Demo Game")
-pygame.mouse.set_cursor((8,8),(0,0),(0,0,0,0,0,0,0,0),(0,0,0,0,0,0,0,0))
+#pygame.mouse.set_cursor((8,8),(0,0),(0,0,0,0,0,0,0,0),(0,0,0,0,0,0,0,0))
 
 ##OBJECTS AND STUFF:
 
@@ -207,15 +208,20 @@ class Monster():
         global run
         global is_paused
         global player_died
+        global health
         dx, dy = get_coordinates_for_player_to_mouse_distance((self.x,self.y), player_pos, monster_speed)
         self.x += dx
         self.y += dy
 
         if self.x-monster_half_size < x < self.x+monster_half_size and self.y-monster_half_size < y < self.y+monster_half_size:
-            print("DEBUG >> monster kill; pause: %s, death: %s" % (is_paused, player_died))
-            is_paused = True
-            player_died = True
-            print("DEBUG >> monster kill; pause: %s, death: %s" % (is_paused, player_died))
+            health -= monster_damage
+            if health <= 0:
+                is_paused = True
+                player_died = True
+
+            return False
+
+        return True
 
 
     def draw(self):
@@ -325,15 +331,27 @@ while run:
                 bullet_reload_count += 1
 
         for i, monster in enumerate(monsters):
-            monster.update((x,y))
-            monster.draw()
+            if monster.update((x,y)):
+                monster.draw()
+            else:
+                monsters.pop(i)
 
         #draw player
         pygame.draw.rect(win, (255, 0, 0), (x-width/2, y-height/2, width, height))
+        #draw health_bar
+        remaining_health_percent = float(health/max_health)
+        colored_health_size = width*remaining_health_percent
+        pygame.draw.rect(win, (125, 0, 0), (x-width/2, y+height/2+2, width, 5))
+        pygame.draw.rect(win, (255, 0, 0), (x-width/2+(width-colored_health_size), y+height/2+2, colored_health_size, 5))
+        #draw ammo
+        ammo_spacing = 1
+        bullet_space = width - (bullet_capacity*1)*ammo_spacing
+        per_bullet_space = float(bullet_space/bullet_capacity)
+        print("DEBUG >> space per bullet: %d" % per_bullet_space)
         for i in range(bullet_count):
-            pygame.draw.rect(win, (0, 255, 255), (x+width/2-bullet_box_width*(i+1)-i, y+height/2+bullet_box_height, bullet_box_width, bullet_box_height))
+            pygame.draw.rect(win, (0, 255, 255), (x+width/2-per_bullet_space*(i+1)-i*ammo_spacing, y+height/2+4+5, per_bullet_space, bullet_box_height))
 
-        draw_aim_marker(win, mouse_pos, (x, y))
+        #draw_aim_marker(win, mouse_pos, (x, y))
 
         text = font.render("Kills: %d" % points, True, (255,0,0), (0,0,0))
         text_rect = text.get_rect()
