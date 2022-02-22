@@ -360,7 +360,7 @@ def generate_swarm(position):
         if i == 4:
             x += monster_size*2
 
-        new_swarm.append(SwarmMonster(x, y, 1, 0.5, monster_size*0.8, monster_speed*2.5))
+        new_swarm.append(SwarmMonster(x, y, 1, 1, monster_size*0.8, monster_speed*2.5))
     return new_swarm
 
 def randomise_monster_type(pos):
@@ -543,20 +543,22 @@ class PowerUp():
 def spawn_powerup(pos):
     global powerups
     chance = random.randint(0,99)
-    if chance >= 90:
-        x, y = pos
-        typeInt = random.randint(0,9)
-        if typeInt in range(5):
-            powerups.append(PowerUp(x, y, PowerUpOptions.CRYSTAL))
+    x, y = pos
+    x = int(x); y=int(y)
+    if chance >= 85:
+        rx, ry = (random.randint(x-5,x+5), random.randint(y-5,y+5))
+        powerups.append(PowerUp(rx, ry, PowerUpOptions.CRYSTAL))
+    if chance >= 95:
+        rx, ry = (random.randint(x-5,x+5), random.randint(y-5,y+5))
+        typeInt = random.randint(0,4)
+        if typeInt in [0,1]:
+            powerups.append(PowerUp(rx, ry, PowerUpOptions.HEALTH, 10))
             return
-        if typeInt in [5,6]:
-            powerups.append(PowerUp(x, y, PowerUpOptions.HEALTH, 10))
+        elif typeInt in [2,3]:
+            powerups.append(PowerUp(rx, ry, PowerUpOptions.SPEED, 10))
             return
-        elif typeInt in [7,8]:
-            powerups.append(PowerUp(x, y, PowerUpOptions.SPEED, 10))
-            return
-        elif typeInt in [9]:
-            powerups.append(PowerUp(x, y, PowerUpOptions.AMMO, 10))
+        elif typeInt in [4]:
+            powerups.append(PowerUp(rx, ry, PowerUpOptions.AMMO, 10))
             return
 
 class SwarmMonster():
