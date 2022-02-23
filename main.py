@@ -1,7 +1,10 @@
 import pygame
 import math
 import random
+import os
+
 from enum import Enum
+from PIL import Image
 
 ## SETTINGS:
 game_loop_frequency = 30
@@ -11,8 +14,8 @@ is_paused = True
 is_in_menu = True
 is_in_level_screen = False
 player_died = False
-game_area_max_x = 1920
-game_area_max_y = 1080
+game_area_max_x = 1080
+game_area_max_y = 720
 x = game_area_max_x/2
 y = game_area_max_y/2
 width = 20
@@ -72,7 +75,8 @@ random.seed()
 pygame.font.init()
 font = pygame.font.Font('freesansbold.ttf', 32)
 floating_text_font = pygame.font.Font('freesansbold.ttf', 15)
-win = pygame.display.set_mode((game_area_max_x, game_area_max_y), pygame.FULLSCREEN)
+#win = pygame.display.set_mode((game_area_max_x, game_area_max_y), pygame.FULLSCREEN)
+win = pygame.display.set_mode((game_area_max_x, game_area_max_y))
 pygame.display.set_caption("Demo Game")
 #pygame.mouse.set_cursor((8,8),(0,0),(0,0,0,0,0,0,0,0),(0,0,0,0,0,0,0,0))
 pygame.mouse.set_visible(False)
@@ -106,6 +110,8 @@ def reset_game_state():
     global monster_spawn_rate
     global bullet_shoot_through
     global weapon_cooldown_max
+    global all_sprites
+    global player
 
     monsters = []
     bullets = []
@@ -133,6 +139,68 @@ def reset_game_state():
     monster_spawn_rate = 1
     bullet_shoot_through = False
     weapon_cooldown_max = 10
+
+    all_sprites = pygame.sprite.Group()
+    player = Player()
+    all_sprites.add(player)
+
+game_folder = os.path.dirname(__file__)
+asset_folder = os.path.join(game_folder, 'assets')
+player_img = pygame.image.load(os.path.join(asset_folder, 'player.png')).convert_alpha()
+
+all_sprites = pygame.sprite.Group()
+
+def rotate_img(image, angle):
+    rot_image = pygame.transform.rotate(image, angle)
+    rot_rect = rot_image.get_rect()
+    return rot_image,rot_rect
+
+def point_difference(p1, p2):
+    x1, y1 = p1
+    x2, y2 = p2
+    return x1-x2, y1-y2
+
+class Player(pygame.sprite.Sprite):
+    def __init__(self):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = player_img
+        #self.image.set_colorkey((0,0,0))
+        self.rect = self.image.get_rect()
+        self.rect.center = x, y
+        self.angle = 0
+        self.initial_gun_offset = 13, 10
+        self.gun_offset = self.initial_gun_offset
+
+    def update_angle(self, mouse_pos):
+        mx, my = mouse_pos
+        rel_x, rel_y = (x-mx, my-y)
+        radians = math.atan2(rel_y, rel_x)
+        self.update_gun_offset(-radians)
+        self.angle = math.degrees(radians)
+
+    def update_gun_offset(self, radians):
+        x, y = self.initial_gun_offset
+        qx = math.cos(radians)*x - math.sin(radians)*y
+        qy = math.sin(radians)*x + math.cos(radians)*y
+        self.gun_offset = qx, qy
+
+    def get_gun_coordinates(self):
+        return point_difference((x,y), self.gun_offset)
+
+    def update(self):
+        img, rect = rotate_img(player_img, self.angle)
+        self.image = img
+        self.rect = rect
+        self.rect.center = x, y
+
+    def draw_help_dots(self):
+        pass
+        #pygame.draw.circle(win, (255, 0, 0), (x, y), 1)
+        #pygame.draw.circle(win, (255, 0, 0), self.get_gun_coordinates(), 1)
+
+
+player = Player()
+all_sprites.add(player)
 
 class OngoingEffectOptions(Enum):
     SPEED = 1
@@ -370,16 +438,22 @@ def generate_swarm(position):
 def randomise_monster_type(pos):
     global big_monster_chance
     global swarm_chance
+    global all_sprites
     percent = random.randint(0,99)
     x, y = pos
-    if percent <= big_monster_chance:
-        big_monster_chance = big_monster_base_chance
-        return [BigMonster(x, y, 5, monster_damage*4, monster_size*1.2, monster_speed*1.2)]
-    elif percent <= swarm_chance:
-        swarm_chance -= 20
-        return generate_swarm(pos)
-    else:
-        return [Monster(x, y)]
+    #if percent <= big_monster_chance:
+    #    big_monster_chance = big_monster_base_chance
+    #    return [BigMonster(x, y, 5, monster_damage*4, monster_size*1.2, monster_speed*1.2)]
+    #elif percent <= swarm_chance:
+    #    swarm_chance -= 20
+    #    return generate_swarm(pos)
+    #else:
+    # FLUTTERSHY
+    monster = Monster(x, y, 1, monster_damage, monster_size, monster_speed, (0,0,255))
+    all_sprites.add(monster)
+    print("DEBUG >> spawning monster")
+    print("DEBUG >> all sprites %s" % all_sprites)
+    return [monster]
 
 def spawn_monster():
     border = random.randint(0, 3)
@@ -643,11 +717,19 @@ class BigMonster():
     def draw(self):
         pygame.draw.rect(win, (133, 20, 156), (self.x-self.size/2, self.y-self.size/2, self.size, self.size))
 
-class Monster():
-    def __init__(self, x, y):
+class Monster(pygame.sprite.Sprite):
+    def __init__(self, x, y, health, damage, size, speed, color):
+        pygame.sprite.Sprite.__init__(self)
         self.x = x
         self.y = y
-        self.health = 1
+        self.health = health
+        self.speed = speed
+        self.damage = damage
+        self.size = size
+        self.image = pygame.Surface((self.size, self.size))
+        self.image.fill(color)
+        self.rect = self.image.get_rect()
+        self.rect.center = self.x, self.y
 
     def deal_damage(self, damage):
         self.health -= damage
@@ -655,12 +737,14 @@ class Monster():
             return True
         return False
 
-    def update(self, player_pos):
+    def update(self):
         global run
         global is_paused
         global player_died
         global health
-        dx, dy = get_coordinates_for_player_to_mouse_distance((self.x,self.y), player_pos, monster_speed)
+        global monsters
+        global all_sprites
+        dx, dy = get_coordinates_for_player_to_mouse_distance((self.x,self.y), (x, y), self.speed)
         self.x += dx
         self.y += dy
 
@@ -670,28 +754,38 @@ class Monster():
             if health <= 0:
                 is_paused = True
                 player_died = True
+            all_sprites.remove(self)
 
-            return False
-
-        return True
-
-
-    def draw(self):
+    def draw(self, win):
         pygame.draw.rect(win, (0, 0, 255), (self.x-monster_size/2, self.y-monster_size/2, monster_size, monster_size))
 
 
 class Bullet():
-    def __init__(self, x, y, dx, dy):
+    def __init__(self, x, y, mouse_pos, speed):
         self.x = x
         self.y = y
-        self.dx = dx
-        self.dy = dy
+        self.tail = []
+        mx, my = mouse_pos
+        rel_x, rel_y = (x-mx, y-my)
+        self.angle = math.atan2(rel_y, rel_x)
+        self.speed = speed
+        self.tail_speeds = range(self.speed-10, self.speed)
 
     def update(self, monsters):
         global points
         global bullet_shoot_through
-        self.x -= self.dx
-        self.y -= self.dy
+        global all_sprites
+
+        self.tail = []
+        for s in self.tail_speeds:
+            dx = s * math.cos(self.angle)
+            dy = s * math.sin(self.angle)
+            self.tail.append((self.x - dx, self.y - dy))
+        dx = self.speed * math.cos(self.angle)
+        dy = self.speed * math.sin(self.angle)
+        self.x -= dx
+        self.y -= dy
+
 
         if not self.within_screen():
             return False
@@ -703,6 +797,7 @@ class Bullet():
                     spawn_powerup((monster.x, monster.y))
                     points += 1
                     monsters.pop(i)
+                    all_sprites.remove(monster)
                     return bullet_shoot_through
                 else:
                     return bullet_shoot_through
@@ -713,7 +808,16 @@ class Bullet():
         return 0 < self.x < game_area_max_x and 0 < self.y < game_area_max_y
 
     def draw(self, window):
-        pygame.draw.circle(win, (255, 100, 100), (self.x, self.y), 2)
+        if bullet_shoot_through:
+            for i, shadow in enumerate(self.tail):
+                x, y = shadow
+                pygame.draw.circle(win, (205, 60, 60), (x, y), 4)
+            pygame.draw.circle(win, (255, 100, 100), (self.x, self.y), 8)
+        else:
+            for i, shadow in enumerate(self.tail):
+                x, y = shadow
+                pygame.draw.circle(win, (205, 60, 60), (x, y), 2)
+            pygame.draw.circle(win, (255, 100, 100), (self.x, self.y), 4)
 
 
 def draw_aim_marker(window, mouse_pos, player_pos):
@@ -779,8 +883,8 @@ while run:
 
         left, _, right = pygame.mouse.get_pressed()
         if left and bullet_count > 0 and weapon_cooldown == 0:
-            dx, dy = get_coordinates_for_player_to_mouse_distance(mouse_pos, (x,y), bullet_speed)
-            bullets.append(Bullet(x, y, dx, dy))
+            gx, gy = player.get_gun_coordinates()
+            bullets.append(Bullet(gx, gy, mouse_pos, bullet_speed))
             bullet_count -= 1
             weapon_cooldown = weapon_cooldown_max
         keys = pygame.key.get_pressed()
@@ -801,7 +905,8 @@ while run:
             if x > game_area_max_x:
                 x = game_area_max_x
 
-        win.fill((0,0,0))
+        #win.fill((0,0,0))
+        win.fill((175,175,175))
 
         for i, powerup in enumerate(powerups):
             if powerup.update():
@@ -830,14 +935,8 @@ while run:
             else:
                 bullet_reload_count += 1
 
-        for i, monster in enumerate(monsters):
-            if monster.update((x,y)):
-                monster.draw()
-            else:
-                monsters.pop(i)
-
         #draw player
-        pygame.draw.rect(win, (255, 0, 0), (x-width/2, y-height/2, width, height))
+        #pygame.draw.rect(win, (255, 0, 0), (x-width/2, y-height/2, width, height))
         #draw health_bar
         remaining_health_percent = float(health/max_health)
         colored_health_size = width*remaining_health_percent
@@ -852,6 +951,16 @@ while run:
 
         #draw_aim_marker(win, mouse_pos, (x, y))
         draw_aim_marker_at_position(win, mouse_pos)
+
+        #drap player sprite!!!
+        player.update_angle(mouse_pos)
+        all_sprites.update()
+        all_sprites.draw(win)
+        player.draw_help_dots()
+
+        for m in monsters:
+            m.draw(win)
+
 
         text = font.render("Crystals: %d" % crystals, True, (133,20,156))
         text_rect = text.get_rect()
@@ -868,7 +977,7 @@ while run:
         total_seconds = game_loops_to_seconds(timer)
         seconds = total_seconds % 60
         minutes = total_seconds / 60
-        text = font.render("%02d:%02d" % (minutes, seconds), True, (255,255,255), (0,0,0))
+        text = font.render("%02d:%02d" % (minutes, seconds), True, (0,0,0))
         text_rect = text.get_rect()
         text_rect.center = (game_area_max_x/2, text_rect.height)
         win.blit(text, text_rect)
